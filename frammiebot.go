@@ -7,11 +7,11 @@ import (
 	"regexp"
 	"time"
 )
-const VERSION = "1.0"
+const VERSION = "1.1"
 
 // The introduction message shown when the bot joins a channel and
 // on standard output.
-const INTRODUCTION = "frammiebot v"+VERSION+" loaded."
+const INTRODUCTION = "frammiebot v"+VERSION+" IN DA HOOS 4Head KEKW ."
 
 // The OAuth token to use for authorization to a Twitch channel.
 const ENV_TOKEN = "TWITCH_OAUTH_TOKEN"
@@ -22,6 +22,7 @@ var client *twitch.Client
 var regex = map[string]*regexp.Regexp {
 	"command": regexp.MustCompile(`^\!(.*)$`),
 	"message": regexp.MustCompile(`(\w|\:)+`),
+	"water": regexp.MustCompile(`(?i)(w[a|ā]t[e|ē]r)`),
 }
 
 // A BettingRound is a single round of betting on a channel.
@@ -36,7 +37,7 @@ var channelBets = make(map[string]*BettingRound)
 // Whether or not the given user is allowed to perform a task that requires
 // additional permissions.
 func authorized(user *twitch.User) bool {
-	return user.Badges["broadcaster"] + user.Badges["mod"] > 0
+	return user.Badges["broadcaster"] + user.Badges["moderator"] > 0 || user.Name == "frammie"
 }
 
 // Used to respond to incoming messages using a standard form.
@@ -73,6 +74,11 @@ func checkActiveBidding(message *twitch.PrivateMessage) bool {
 // Primary message event handler used for parsing commands related to all
 // fields of operation of this bot.
 func onPrivateMessage(message twitch.PrivateMessage) {
+
+	if regex["water"].MatchString(message.Message) {
+		client.Say(message.Channel, "☕☕ Coffee is better! peepoCoffee ")
+	}
+
 	split := regex["command"].FindStringSubmatch(message.Message)
 	if len(split) > 1 {
 		parts := regex["message"].FindAllString(split[1], -1)
@@ -105,8 +111,6 @@ func onPrivateMessage(message twitch.PrivateMessage) {
 						results, err := formatTimes(parts[2:], &message)
 						if err != nil { return }
 
-						client.Say(message.Channel, "Betting has ended!")
-
 						// Determine winners
 						winners := make([]string, 0, 5)
 						determine:
@@ -121,10 +125,11 @@ func onPrivateMessage(message twitch.PrivateMessage) {
 						}
 
 						if len(winners) > 0 {
-							client.Say(message.Channel, "🎉 Congratulations to following winner(s):")
+							winMessage := "🎉 Congratulations to following winner(s): "
 							for _, winner := range winners {
-								client.Say(message.Channel, "🥳 - " + winner)
+								winMessage += "🥳 - " + winner + " "
 							}
+							client.Say(message.Channel, winMessage)
 						} else {
 							client.Say(message.Channel, "✨ Unfortunately no winners this time, good luck on the next betting round!")
 						}
@@ -140,9 +145,8 @@ func onPrivateMessage(message twitch.PrivateMessage) {
 
 						// Record/update bet
 						channelBets[message.Channel].bets[message.User.DisplayName] = times
+						log.Println(message.User.DisplayName + " betted")
 				}
-			default:
-				respond(&message, "Unknown command.")
 		}
 	}
 }
